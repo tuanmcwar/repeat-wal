@@ -160,28 +160,32 @@ async function scanMarket(hourKey) {
   }
 }
 
+
 async function waitForNextHour() {
   const now = Date.now();
 
-  const nextHour =
-    (Math.floor(now / HOUR_MS) + 1) * HOUR_MS;
+  const HOUR_MS = 60 * 60 * 1000;
+  const OFFSET_MS = 2 * 60 * 1000;
+
+  const nextScan =
+    Math.floor((now - OFFSET_MS) / HOUR_MS + 1)
+    * HOUR_MS + OFFSET_MS;
 
   log(
-    `⏰ Next scan: ${new Date(nextHour)
+    `⏰ Next scan: ${new Date(nextScan)
       .toLocaleString("vi-VN", {
         timeZone: "Asia/Ho_Chi_Minh",
         hour12: false
       })}`
   );
 
-  while (running && Date.now() < nextHour) {
-    const remaining = nextHour - Date.now();
+  while (running && Date.now() < nextScan) {
+    const remaining = nextScan - Date.now();
 
-    await sleep(
-      Math.min(remaining, 10000)
-    );
+    await sleep(Math.min(remaining, 10000));
   }
 }
+
 
 async function main() {
   loadHistory();
