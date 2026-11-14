@@ -13,7 +13,7 @@ const HOUR_MS = 60 * 60 * 1000;
 
 
 
-// const HOUR_MS = 57 * 60 * 1000;
+// const HOUR_MS = 5 * 60 * 1000;
 
 const filePath = path.resolve(
   config.dataDir,

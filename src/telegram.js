@@ -8,14 +8,25 @@ import {
   markNotificationSent
 } from "./wallHistory.js";
 
+// ========================================
+// TELEGRAM API
+// ========================================
+
 const telegram = axios.create({
-  baseURL:
-    `https://api.telegram.org/bot${config.telegramToken}`,
+  baseURL: `https://api.telegram.org/bot${config.telegramToken}`,
   timeout: 15000
 });
 
+// ========================================
+// NUMBER FORMAT
+// ========================================
+
 function number(value, digits = 2) {
-  if (!Number.isFinite(Number(value))) {
+  if (
+    value == null ||
+    value === "" ||
+    !Number.isFinite(Number(value))
+  ) {
     return "N/A";
   }
 
@@ -27,6 +38,11 @@ function number(value, digits = 2) {
 function formatPrice(value) {
   return String(value);
 }
+
+// ========================================
+// FORMAT TELEGRAM NOTIFICATION
+// ========================================
+
 
 function formatNotification(n) {
   const side =
@@ -46,11 +62,7 @@ function formatNotification(n) {
       break;
 
     case "NO_REPEAT_1":
-      status = "⚠️ NO REPEAT 1";
-      break;
-
-    case "NO_REPEAT_2":
-      status = "❌ NO REPEAT 2";
+      status = "⚠️ NO REPEAT";
       break;
 
     default:
@@ -69,40 +81,43 @@ function formatNotification(n) {
     `📦 Khối lượng: ${number(n.quantity, 2)}`,
     `💵 Giá trị: ${number(n.value)} USDT`,
     `📊 Gấp trung bình: ${number(n.ratio)} lần`,
-    `📉 Trung bình/mức: ${number(n.average)} USDT`,
-    "",
-    "📍 PRICE POSITION",
+  ];
+
+  // NO REPEAT 1: Chỉ hiển thị thông tin Wall
+  // và xác nhận đã xóa khỏi lịch sử.
+  if (n.type === "NO_REPEAT_1") {
+    lines.push(
+      "",
+      `🕒 Giờ quét: ${formatHour(n.hourKey)}`,
+      "🗑️ Đã xóa Wall khỏi lịch sử theo dõi."
+    );
+
+    return lines.join("\n");
+  }
+
+  // NEW / REPEAT: Giữ nguyên thông tin bổ sung.
+  lines.push(
     `📍 Khoảng cách giá: ${
+      n.distancePercent != null &&
       Number.isFinite(Number(n.distancePercent))
         ? number(n.distancePercent) + "%"
         : "N/A"
     }`,
     "",
-    `🕒 Giờ quét: ${formatHour(n.hourKey)}`
-  ];
-
-  if (n.type === "NO_REPEAT_1") {
-    lines.push("");
-    lines.push(
-      "⚠️ Wall không còn đạt điều kiện.",
-      "⏳ Tiếp tục kiểm tra lần quét sau."
-    );
-  }
-
-  if (n.type === "NO_REPEAT_2") {
-    lines.push("");
-    lines.push(
-      "🗑 Wall đã bị xóa khỏi danh sách theo dõi."
-    );
-  }
-
-  lines.push("");
-  lines.push(
+    `🕒 Giờ quét: ${formatHour(n.hourKey)}`,
+    "",
     "⚠️ Snapshot lệnh chờ, không phải giao dịch đã khớp."
   );
 
   return lines.join("\n");
 }
+
+
+// ========================================
+// INLINE KEYBOARD
+// ========================================
+
+
 
 function getKeyboard(notification) {
   const symbol = notification.symbol;
@@ -117,13 +132,25 @@ function getKeyboard(notification) {
           }
         },
         {
+          text: "📋 Copy Symbol",
+          copy_text: {
+            text: `${symbol}.P`
+          }
+        },
+        {
           text: "📈 Xem biểu đồ CoinGlass",
-          url: "https://www.coinglass.com/"
+          url: `https://www.coinglass.com/tv/vi/Binance_${symbol}`
         }
       ]
     ]
   };
 }
+
+
+
+// ========================================
+// SEND TELEGRAM
+// ========================================
 
 export async function sendTelegram(
   text,
@@ -138,8 +165,23 @@ export async function sendTelegram(
     payload.reply_markup = replyMarkup;
   }
 
-  await telegram.post("/sendMessage", payload);
+  const { data } = await telegram.post(
+    "/sendMessage",
+    payload
+  );
+
+  if (!data?.ok) {
+    throw new Error(
+      data?.description || "Telegram gửi thất bại"
+    );
+  }
+
+  return data.result;
 }
+
+// ========================================
+// FLUSH NOTIFICATION QUEUE
+// ========================================
 
 export async function flushNotifications() {
   const pending = getPendingNotifications();
@@ -153,7 +195,10 @@ export async function flushNotifications() {
         getKeyboard(notification)
       );
 
+      // Chỉ xóa thông báo khỏi hàng đợi
+      // sau khi Telegram gửi thành công.
       markNotificationSent(notification.id);
+
       sent++;
 
       await new Promise(resolve =>
@@ -167,6 +212,7 @@ export async function flushNotifications() {
         error.message
       );
 
+      // Giữ thông báo chưa gửi để thử lại.
       break;
     }
   }
