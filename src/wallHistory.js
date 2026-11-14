@@ -11,7 +11,9 @@ import { config } from "./config.js";
 // Khi chạy chính thức 1H, đổi thành:
 const HOUR_MS = 60 * 60 * 1000;
 
-// const HOUR_MS = 5 * 60 * 1000;
+
+
+// const HOUR_MS = 57 * 60 * 1000;
 
 const filePath = path.resolve(
   config.dataDir,
@@ -345,33 +347,20 @@ export function processSymbolWalls(
     record.lastCheckedHour = hourKey;
     record.noRepeatCount++;
 
-    if (record.noRepeatCount === 1) {
-      enqueue(
-        "NO_REPEAT_1",
-        record,
-        hourKey
-      );
+    
+if (record.noRepeatCount >= 1) {
+  // Ghi nhận Wall biến mất lần đầu.
+  enqueue("NO_REPEAT_1", record, hourKey);
 
-      events.push({
-        type: "NO_REPEAT_1",
-        key
-      });
+  events.push({
+    type: "NO_REPEAT_1",
+    key
+  });
 
-    } else if (record.noRepeatCount >= 2) {
-      enqueue(
-        "NO_REPEAT_2",
-        record,
-        hourKey
-      );
+  // Xóa ngay khỏi lịch sử theo dõi.
+  delete database.walls[key];
+}
 
-      events.push({
-        type: "NO_REPEAT_2",
-        key
-      });
-
-      // Xóa Wall khỏi dữ liệu theo dõi.
-      delete database.walls[key];
-    }
   }
 
   // ----------------------------------------
